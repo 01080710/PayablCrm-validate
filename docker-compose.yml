@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  payabl_crm_validate:
+    build: .
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - "C:/Users/peter.chang/Desktop:/data"
+      - ./logs:/var/log
+      - ./crontab.txt:/etc/cron.d/my-cron
+    command: >
+      sh -c "touch /var/log/cron.log &&
+             chmod 0644 /etc/cron.d/my-cron &&
+             /usr/bin/crontab /etc/cron.d/my-cron &&
+             /usr/sbin/cron -f"
+    networks:
+      - mynetwork
+    restart: always
+
+networks:
+  mynetwork:
+    driver: bridge
