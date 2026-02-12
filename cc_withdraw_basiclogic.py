@@ -153,7 +153,12 @@ def data_seperatecase(audit_df, df1, df2):
         }
 
 
-def data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch , df1 ,df2):
+def data_regular(df_single_ok ,
+                 df_multi_ok ,
+                 df_single_mismatch ,
+                 df_recon_mismatch_payabl,
+                 df_recon_mismatch_crm,
+                 df1 ,df2):
     columns = [
         'Createtime',
         'Tx-Id',
@@ -165,7 +170,23 @@ def data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch , df1 ,df2):
         'Refund Amount',
         'Refund_Amount_crm'
     ]
-    
+    columns_payabl = [
+        'Createtime',
+        'Tx-Id',
+        'Tx-Type',
+        'Status',
+        'Deposit Order Number',
+        'Currency',
+        'Refund Amount',
+    ]
+    cols_to_fill = [
+        'Deposit Order Number',
+        'Createtime',
+        'Tx-Id',
+        'Tx-Type',
+        'Status',
+        'Currency'
+    ]
     # 1.
     df_single_ok1 = df_single_ok.merge(
         df2[['Merchant Order','Deposit Order Number']],
@@ -179,7 +200,6 @@ def data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch , df1 ,df2):
     )[columns]
 
 
-
     # 2.
     df_multi_ok1 = df_multi_ok.merge(
         df2[['Merchant Order','Deposit Order Number','Refund Amount']],
@@ -189,15 +209,6 @@ def data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch , df1 ,df2):
         'Refund Amount_x': 'Refund Amount',
         'Refund Amount_y': 'Refund_Amount_crm'
     })
-
-    cols_to_fill = [
-        'Deposit Order Number',
-        'Createtime',
-        'Tx-Id',
-        'Tx-Type',
-        'Status',
-        'Currency'
-    ]
 
     df_multi_ok2 = df_multi_ok1.merge(
         df1[cols_to_fill],
@@ -220,7 +231,28 @@ def data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch , df1 ,df2):
         on='Deposit Order Number',
         how='left'
     )[columns]
-    return df_single_final ,df_multi_final ,df_single_mismatch_final
+    
+    
+    # 4.
+    if not df_recon_mismatch_payabl.empty and 'Deposit Order Number' in df_recon_mismatch_payabl.columns:
+        df_recon_mismatch_payabl1 = df_recon_mismatch_payabl.merge(
+            df1[cols_to_fill],
+            on = 'Deposit Order Number',
+            how = 'left'
+        )[columns_payabl]
+    else:
+        df_recon_mismatch_payabl1 = pd.DataFrame(columns=columns_payabl)
+    
+    # 5.
+    df_recon_mismatch_crm1 = df_recon_mismatch_crm.merge(
+        df2[['Merchant Order','Deposit Order Number','Order Currency']],
+        on=['Merchant Order','Deposit Order Number'],
+        how='left')
+    df_recon_mismatch_crm2 = df_recon_mismatch_crm1.rename(
+        columns={'Refund Amount'  : 'Refund_Amount_crm',
+                'Order Currency' : 'Currency'})
+    
+    return df_single_final ,df_multi_final ,df_single_mismatch_final ,df_recon_mismatch_payabl1 ,df_recon_mismatch_crm2
 
 
 def format_datetime_columns(df):
@@ -239,12 +271,14 @@ def reconcile_cc_refunds(payabl_cc : pd.DataFrame
     (df_single_ok ,                                         # Data Case Result
      df_multi_ok ,
      df_single_mismatch ,
-     df_recon_mismatch_payabl ,
-     df_recon_mismatch_crm) = case['single_ok']  ,case['multi_ok'] ,case['single_mismatch'],case['payabl_mismatch'] ,case['crm_mismatch']
-        
+     df_recon_mismatch_payabl1 ,
+     df_recon_mismatch_crm1) = case['single_ok']  ,case['multi_ok'] ,case['single_mismatch'],case['payabl_mismatch'] ,case['crm_mismatch']
+
     (df_single_final,                                       # Data Shape To Regular 
      df_multi_final , 
-     df_single_mismatch_final) = data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch , df1 ,df2)   
+     df_single_mismatch_final ,
+     df_recon_mismatch_payabl ,
+     df_recon_mismatch_crm) = data_regular(df_single_ok ,df_multi_ok ,df_single_mismatch ,df_recon_mismatch_payabl1 ,df_recon_mismatch_crm1 , df1 ,df2)   
     
     SRC_BOTH     = 'Payabl & Crm'
     SRC_PAYABL   = 'Payabl'
@@ -272,10 +306,13 @@ def reconcile_cc_refunds(payabl_cc : pd.DataFrame
         ignore_index=True
     )
     
-    
-    df_final = df_final.astype(object).where(pd.notna(df_final), "")
-    df_final['Comparison Time'] = datetime.now(ZoneInfo('Asia/Taipei')).strftime('%Y-%m-%d %H:%M:%S')
-    df_final = df_final[(df_final['recon_result'] == "Mismatch")]
     df_final = format_datetime_columns(df_final)
+    df_final = df_final.where(pd.notna(df_final), "")
+    df_final['Comparison Time'] = datetime.now(ZoneInfo('Asia/Taipei')).strftime('%Y-%m-%d %H:%M:%S')
+    df_final = (
+        df_final
+        .query("recon_result == 'Mismatch' and recon_source != 'Crm'")
+        .drop_duplicates(['Merchant Order', 'Deposit Order Number'])
+    )    
     
     return df_final

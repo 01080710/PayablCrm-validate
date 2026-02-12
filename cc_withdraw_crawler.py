@@ -38,8 +38,8 @@ def build_api_session(token:str, cookies: dict) -> requests.Session:
     return session
 
 
-def dayrange(DayRange: int = 2):
-    today = datetime.now(ZoneInfo('Asia/Taipei')).date()
+def dayrange(tz: str = 'Asia/Taipei' ,DayRange: int = 2):
+    today = datetime.now(ZoneInfo(tz)).date()
     return [(today - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(DayRange-1, -1, -1)]
 
 
@@ -67,10 +67,10 @@ def export_csv(brand: str,
 
     DATA_DIR = os.getenv("DATA_DIR", "/data") # Docker deployment method
     out_path = build_output_path(
-        base_dir= DATA_DIR,#r'C:\Users\peter.chang\Desktop', # DATA_DIR,
+        base_dir= DATA_DIR , #r'C:\Users\peter.chang\Desktop', # DATA_DIR,
         system='CRM&Payabl',
         branch='cc_withdraw',
-        dt=datetime.now(ZoneInfo('Asia/Taipei')),
+        dt=datetime.now(ZoneInfo(tz)),
         brand=brand
         ) 
     final_df.to_csv(f'{out_path}/{filename}', index=False, encoding='utf-8-sig')
@@ -81,7 +81,7 @@ def export_csv(brand: str,
 def login_and_get_token(account: str, 
                         password: str, 
                         setup_key: str, 
-                        max_retry: int = 3) -> tuple[dict,str]:
+                        max_retry: int = 5) -> tuple[dict,str]:
     from requests.adapters import HTTPAdapter
     from urllib3.util.retry import Retry
     import pyotp, hashlib, time, requests
@@ -106,48 +106,68 @@ def login_and_get_token(account: str,
         "user-agent": "Mozilla/5.0",
     }
 
-    # 🔐 TOTP
-    try:
-        totp = pyotp.TOTP(setup_key)
-        totp_code = totp.now()
-    except Exception as e:
-        raise RuntimeError(f"TOTP 產生失敗: {e}")
-
-    # 🔑 密碼 
+    
     password_hash = hashlib.md5(password.encode()).hexdigest()
 
-    data = {
-        "userName_login": account,
-        "password_login": password_hash,
-        "twoFactorType": "googleAuth",
-        "googleAuthTotp": totp_code,
-    }
-    
-    # 🚪 登入
-    try:
-        response = session.post(
-            "https://admin.vantagemarkets.com/login/to_login",
-            data=data,
-            headers=headers,
-            allow_redirects=True,
-            timeout=(10, 30),  # connect, read
+    last_error = None
+
+    for attempt in range(1, max_retry + 1):
+
+        try:
+            # ⏱ TOTP 容忍時間偏移（避免 server time drift）
+            totp = pyotp.TOTP(setup_key)
+            totp_code = totp.now()
+
+            logger.info(f"Login attempt {attempt}/{max_retry}")
+
+            response = session.post(
+                "https://admin.vantagemarkets.com/login/to_login",
+                data={
+                    "userName_login": account,
+                    "password_login": password_hash,
+                    "twoFactorType": "googleAuth",
+                    "googleAuthTotp": totp_code,
+                },
+                headers=headers,
+                allow_redirects=True,
+                timeout=(10, 30),
+            )
+
+        except requests.RequestException as e:
+            last_error = f"登入請求失敗: {e}"
+            logger.error(last_error)
+            time.sleep(2)
+            continue
+
+        # ========= 強化診斷 =========
+
+        logger.info(
+            f"Login response status={response.status_code}, "
+            f"url={response.url}, cookies={len(session.cookies)}"
         )
-    except requests.RequestException as e:
-        raise RuntimeError(f"登入請求失敗: {e}")
+
+        if response.status_code != 200:
+            last_error = f"HTTP {response.status_code}"
+            time.sleep(2)
+            continue
+
+        # ❗ 可能被導回 login
+        if "login" in response.url.lower():
+            last_error = "被導回 login 頁面（可能帳密/TOTP/風控）"
+            logger.warning(last_error)
+            time.sleep(2)
+            continue
 
 
-    # ✅ 登入成功判斷
-    if response.status_code != 200:
-        raise RuntimeError(f"登入 HTTP 失敗，status={response.status_code}")
+        logger.info("Login successful")
+        break
 
-    if len(session.cookies) == 0:
-        raise RuntimeError("登入後未取得任何 cookie（可能驗證失敗）")
+    else:
+        raise RuntimeError(f"❌ 登入失敗（已重試 {max_retry} 次）：{last_error}")
 
-    if "login" in response.url.lower():
-        raise RuntimeError("被導回登入頁，帳密或 TOTP 可能錯誤")
-    
-    logger.info("Login successful, cookies obtained")
     cookies = session.cookies.get_dict()
+
+
 
     # 🎟 取得 token
     token = None
@@ -211,7 +231,7 @@ def download_davinci_cc_reports(brands   = ['ASIC','VFSC','VFSC2','FCA'],
         logger.info(f"Start downloading Davinci CC Report for brand: {brand}...")
         brand_dfs = []
 
-        for day in dayrange(4):
+        for day in dayrange(tz='Asia/Nicosia',DayRange=4): # 賽普勒斯時區
             json_data = {
                 'regulator': brand.lower(),
                 'sort': {},
@@ -297,7 +317,7 @@ def download_davinci_cc_reports(brands   = ['ASIC','VFSC','VFSC2','FCA'],
 
         #  Export after all days 
         if brand_dfs:
-            export_csv(brand, brand_dfs)
+            export_csv(brand, brand_dfs) # 用台灣時區，會比較好跟後續撈取邏輯同步
             df_total.extend(brand_dfs)
         logger.info(f"Finish downloading Davinci CC - {brand} Report")
             
@@ -356,7 +376,7 @@ def download_payabl_reports(max_retry: int = 5) -> pd.DataFrame | None:
 
     # Get New Token
     brand_dfs: list[pd.DataFrame] = []          
-    for day in dayrange(2):
+    for day in dayrange(DayRange=2):
         logger.info(f"Start downloading Payabl CC Report for date: {day}...")
         headers = {
             'accept': 'application/json, text/plain, */*',

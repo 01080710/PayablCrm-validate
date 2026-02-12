@@ -16,7 +16,6 @@ TZ=Asia/Taipei
 # 只在平日 9:00	       -> 0 9 * * 1-5
 # 每週一凌晨 2 點       -> 0 2 * * 1
 # 每月 1 號凌晨 0 點    -> 0 0 1 * *
-# 0 * * * * root /usr/local/bin/python3 /app/main.py >> /var/log/cron.log 2>&1
 0 * * * * root /bin/bash -c '/usr/local/bin/python3 /app/main.py >> /var/log/$(date +\%Y\%m\%d).log 2>&1'
 
 
