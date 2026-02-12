@@ -26,7 +26,7 @@ def safe_concat(files):
 today = datetime.now(ZoneInfo('Asia/Taipei'))
 # RealtimeHour = (today-timedelta(days=1)).strftime('%Y%m%d16')
 # path = r'C:\Users\peter.chang\Desktop\2026\02\12\CRM&Payabl\cc_withdraw/'
-RealtimeHour = today.strftime('%Y%m%d14')
+RealtimeHour = today.strftime('%Y%m%d16')
 path = r'C:\Users\peter.chang\Desktop\2026\02\12\CRM&Payabl\cc_withdraw/'
 
 counts = 0

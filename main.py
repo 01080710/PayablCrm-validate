@@ -78,10 +78,10 @@ def main():
             ]
         logger.info(f"Total unique keys in LarkSheet: {len(uploaded_keys)}, Total new mismatch cases to upload: {len(mismatch_case1)}")
         if not mismatch_case1.empty:
-            append_sheet(access_token, sheet_token, sheet_id, mismatch_case1.values.tolist(), row=2)    # only append data to row 2, header is already there(not empty)
+            append_sheet(access_token, sheet_token, sheet_id, mismatch_case1.values.tolist(), row=2)    # Only append data to row 2, header is already there(not empty)
         else:
             detection_time = mismatch_case['Comparison Time'].iloc[0]
-            append_sheet(access_token,sheet_token,sheet_id, 
+            append_sheet(access_token,sheet_token,sheet_id,                                            # Need to append 2 dimensional list to avoid error, even it's just one row with detection time
                          [['-','-','-','-','-','-','-','-','-','-','-',f'{detection_time}']],row=2)    # if no new mismatch case, still append a row with detection time to indicate the last check time
     else:
         logger.info('LarkSheet is empty, start uploading all data...')                                 # Need to upload header first, then data                           

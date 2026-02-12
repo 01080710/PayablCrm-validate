@@ -1,4 +1,4 @@
-# 📄 README – CC Reconcile Workflow
+# Credit Card Reconcile Workflow
 
 ## 1️⃣ 專案概述
 
@@ -142,20 +142,9 @@
 ---
 
 ## 7️⃣ 流程示意圖
+<p align="center">
+  <img src="docs/workflow.png" width="700">
+</p>
 
-```
-Download Reports
-      │
-      ▼
-Reconcile Data
-      │
-      ▼
-Connect Lark
-      │
-      ▼
-Upload Mismatch Cases
-      │
-      ▼
-Finish & Log
-```
+
 
