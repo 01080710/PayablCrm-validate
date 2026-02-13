@@ -2,16 +2,17 @@ from cc_withdraw_crawler    import (download_davinci_cc_reports,
                                     download_payabl_reports)
 from cc_withdraw_basiclogic import (reconcile_cc_refunds)
 from cc_withdraw_larkapi    import (get_lark_token,
-                                    files_in_folder,
-                                    query_sheet_info,
                                     query_sheet_data,
                                     append_sheet)
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from logger import get_logger
 import pandas as pd
 
 
 # 🟢 Init
 logger = get_logger(service="cc_reconcile", stage="init")
+
 
 # 🟢 Main
 def main():
@@ -35,31 +36,9 @@ def main():
     logger = get_logger(service="cc_reconcile", stage="lark")
     app_id       = "cli_a86751faa8f9d029"
     app_secret   = "TjZ5cprV3v3Y6Afj3UcZtea1qayrzpVn"
-    folder_token = "YTrefncx7lsH06d36pFla0yMgre"
     access_token = get_lark_token(app_id, app_secret)
     logger.info(f"Connect Lark Finish")
-    files        = files_in_folder(access_token, folder_token=folder_token)   
-    file_items = files.get('data', {}).get('files', []) if files else []
-    
-    if not file_items:
-        logger.error('The file list in the LarkFolder is empty. Please upload a file to create a LarkSheet first.')
-        raise ValueError('此LarkFolder中沒有檔案，請先上傳一個檔案以建立LarkSheet')
-    logger.info(f"Get file list in LarkFolder Finish")
-    
-    sheet_list = []    
-    for f in file_items:
-        sheet_name  = f.get('name')
-        sheet_token = f.get('token')
-        sheet_id = query_sheet_info(access_token,sheet_token)['sheet_id']
-        logger.info(f"Found LarkSheet - Name: {sheet_name}, Token: {sheet_token}, Sheet ID: {sheet_id}")
-        sheet_list.append({
-                'sheet_name' : sheet_name,
-                'sheet_token': sheet_token,
-                'sheet_id': sheet_id
-            })
-        
-    default_sheet = sheet_list[0]
-    sheet_token ,sheet_id  = default_sheet['sheet_token'] ,default_sheet['sheet_id']
+    sheet_token ,sheet_id  = 'GNGuwWw8JiAZDskb2oalPOUZgQY' , 'Kalw4Y' # Y4kHsx8L7herZXtbQgdlIsjZgOd , 6e0be3
     logger.info('Start query existing data in LarkSheet...')
     data         = query_sheet_data(access_token, sheet_token, sheet_id)
     
@@ -80,13 +59,14 @@ def main():
         if not mismatch_case1.empty:
             append_sheet(access_token, sheet_token, sheet_id, mismatch_case1.values.tolist(), row=2)    # Only append data to row 2, header is already there(not empty)
         else:
-            detection_time = mismatch_case['Comparison Time'].iloc[0]
-            append_sheet(access_token,sheet_token,sheet_id,                                            # Need to append 2 dimensional list to avoid error, even it's just one row with detection time
-                         [['-','-','-','-','-','-','-','-','-','-','-',f'{detection_time}']],row=2)    # if no new mismatch case, still append a row with detection time to indicate the last check time
+            detection_time = datetime.now(ZoneInfo("Asia/Taipei")).strftime("%Y-%m-%d %H:%M:%S")
+            append_sheet(access_token,sheet_token,sheet_id,                                             # Need to append 2 dimensional list to avoid error, even it's just one row with detection time
+                         [['-','-','-','-','-','-','-','-','-','-','-',f'{detection_time}']],row=2)     # if no new mismatch case, still append a row with detection time to indicate the last check time
     else:
-        logger.info('LarkSheet is empty, start uploading all data...')                                 # Need to upload header first, then data                           
+        logger.info('LarkSheet is empty, start uploading all data...')                                  # Need to upload header first, then data                           
         append_sheet(access_token, sheet_token, sheet_id, [list(mismatch_case.columns)],  row=1)     
         append_sheet(access_token, sheet_token, sheet_id, mismatch_case.values.tolist(),  row=2)
     logger.info('Upload data to LarkSheet Finish')
     
+
 main()

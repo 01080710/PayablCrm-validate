@@ -296,15 +296,15 @@ def reconcile_cc_refunds(payabl_cc : pd.DataFrame
     df_recon_mismatch_crm['recon_result'] = RES_MISMATCH    # crm mismatch
     df_recon_mismatch_crm['recon_source'] = SRC_CRM
     
-    df_final = pd.concat(
-        [   df_single_final,
-            df_multi_final,
-            df_single_mismatch_final,
-            df_recon_mismatch_payabl,
-            df_recon_mismatch_crm
-        ],
-        ignore_index=True
-    )
+    dfs = [
+        df_single_final,
+        df_multi_final,
+        df_single_mismatch_final,
+        df_recon_mismatch_payabl,
+        df_recon_mismatch_crm
+    ]
+    dfs = [df for df in dfs if not df.empty]
+    df_final = pd.concat(dfs, ignore_index=True)
     
     df_final = format_datetime_columns(df_final)
     df_final = df_final.where(pd.notna(df_final), "")

@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 import logging ,json ,sys
 
-
 class JsonFormatter(logging.Formatter):
     def format(self, record):
         log_record = {
@@ -43,3 +42,5 @@ def get_logger(
     )
 
     return logger
+
+

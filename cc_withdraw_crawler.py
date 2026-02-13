@@ -61,7 +61,12 @@ def export_csv(brand: str,
     """
     if not brand_dfs:
         return None
-    final_df = pd.concat(brand_dfs, ignore_index=True)
+    
+    valid_dfs = [
+        df for df in brand_dfs
+        if df is not None and not df.empty
+    ]
+    final_df = pd.concat(valid_dfs, ignore_index=True)
     now = datetime.now(ZoneInfo(tz)).strftime('%Y%m%d%H%M%S')
     filename = f'{brand}_all_{now}.csv' if prefix is None else f'{prefix}_{brand}_all_{now}.csv'
 
@@ -429,10 +434,17 @@ def download_payabl_reports(max_retry: int = 5) -> pd.DataFrame | None:
                 # [['Createtime', 'Order No.', 'Amount']]
         )
         brand_dfs.append(df)
+        
     if brand_dfs:
         export_csv('payabl', brand_dfs)
-    final_df = pd.concat(brand_dfs, ignore_index=True)
+        
+    valid_dfs = [
+        df for df in brand_dfs
+        if df is not None and not df.empty
+    ]
+    final_df = pd.concat(valid_dfs, ignore_index=True)
     logger.info(f"Finish downloading Payabl CC Report")
+    
     return final_df
 
 
