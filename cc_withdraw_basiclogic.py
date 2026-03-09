@@ -120,8 +120,12 @@ def data_seperatecase(audit_df, df1, df2):
         ][['Deposit Order Number','Refund Amount']]
         
         # filter df2 not-matched row
-        df_crm_diff = df2[(df2['Deposit Order Number'] == don) &
-            (df2['Order Amount'].astype(float).isin(diff_2_not_in_1))
+        # df_crm_diff = df2[(df2['Deposit Order Number'] == don) &
+        #     (df2['Order Amount'].astype(float).isin(diff_2_not_in_1))
+        # ][['Merchant Order','Deposit Order Number','Refund Amount']]
+        df_crm_diff = df2[
+            (df2['Deposit Order Number'] == don) &
+            (pd.to_numeric(df2['Order Amount'], errors='coerce').isin(diff_2_not_in_1))
         ][['Merchant Order','Deposit Order Number','Refund Amount']]
 
         # result
@@ -244,13 +248,22 @@ def data_regular(df_single_ok ,
         df_recon_mismatch_payabl1 = pd.DataFrame(columns=columns_payabl)
     
     # 5.
+    for col in ['Merchant Order', 'Deposit Order Number']:
+        if col not in df_recon_mismatch_crm.columns:
+            df_recon_mismatch_crm[col] = None
+
     df_recon_mismatch_crm1 = df_recon_mismatch_crm.merge(
         df2[['Merchant Order','Deposit Order Number','Order Currency']],
         on=['Merchant Order','Deposit Order Number'],
-        how='left')
+        how='left'
+    )
+
     df_recon_mismatch_crm2 = df_recon_mismatch_crm1.rename(
-        columns={'Refund Amount'  : 'Refund_Amount_crm',
-                'Order Currency' : 'Currency'})
+        columns={
+            'Refund Amount': 'Refund_Amount_crm',
+            'Order Currency': 'Currency'
+        }
+    )
     
     return df_single_final ,df_multi_final ,df_single_mismatch_final ,df_recon_mismatch_payabl1 ,df_recon_mismatch_crm2
 

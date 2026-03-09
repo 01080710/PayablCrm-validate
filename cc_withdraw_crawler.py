@@ -210,24 +210,35 @@ def login_and_get_token(account: str,
     return cookies, token
 
 
+def load_env_file(path):
+    env = {}
+    with open(path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            key, value = line.split('=', 1)
+            env[key.strip()] = value.strip()
+    return env
 
 
 
+credentials = load_env_file("/run/secrets/credentials.env")
 # Davinci_CC_Report
 def download_davinci_cc_reports(brands   = ['ASIC','VFSC','VFSC2','FCA'], 
                                 missions = ['Users','Client','Account','Reports','Task','System Setting']
                                 ) -> pd.DataFrame | None:
     
     logger = get_logger(service="cc_reconcile", stage="download_davinci")
-    MAX_RETRIES = 3
+    MAX_RETRIES = 10
     RETRY_SLEEP = 5
     POST_TIMEOUT = 600
     GET_TIMEOUT = 600
 
     cookies, token = login_and_get_token(             #  Login and Get token
-        account="Deposit OP",
-        password="Asdf@1021Dec",
-        setup_key="43LMDYGOANF4SWDX5JLNQ2FPICLFC3N3",
+        account  = credentials.get('crm_account'),
+        password = credentials.get('crm_password'),
+        setup_key= credentials.get('crm_setup_key')
     )          
     session = build_api_session(token, cookies)       #  Session
 
@@ -336,15 +347,16 @@ def download_davinci_cc_reports(brands   = ['ASIC','VFSC','VFSC2','FCA'],
 def download_payabl_reports(max_retry: int = 5) -> pd.DataFrame | None:
     logger = get_logger(service="cc_reconcile", stage="download_payabl")
     json_data = {
-        'username': 'ops_vantage_new',
-        'password': 'Vantage@0902',
+        'username' : credentials.get('payabl_account'),
+        'password' : credentials.get('payabl_password'),
         'ui_access': 1,
     }
 
     session = requests.Session()
     response = session.post('https://portal.payabl.com/api/accounts/auth/login'
                             ,json=json_data 
-                            ,timeout=300)
+                            ,timeout=300
+                            ,stream=True)
     
     retry_strategy = Retry(
         total=max_retry,
